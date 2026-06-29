@@ -1,0 +1,41 @@
+[2026-06-29T13:54:57.437Z][INFO] Command-line: 'C:\\Program Files\\Unity\\Hub\\Editor\\6000.5.1f1\\Editor\\Data\\Resources\\PackageManager\\Server\\UnityPackageManager.exe' server -s 20188 --ipc-path Unity-Upm-20188 -l 2 --log-file C:\\Users\\Professional\\VRShovel/Logs/upm.log
+[2026-06-29T13:54:57.482Z][INFO] IPC server started (IPC path=Unity-Upm-20188).
+[2026-06-29T13:54:57.482Z][INFO] Hint: To connect to this UPM instance, launch Unity with the command-line parameter -upmIpcPath Upm-20188.
+[2026-06-29T13:55:00.947Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:01.081Z][INFO] config:project:get-registries <-- Request received
+params: {}
+[2026-06-29T13:55:01.097Z][INFO] config:project:get-registries --> 200 (16 ms)
+[2026-06-29T13:55:01.106Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:01.444Z][INFO] project:list-packages --> 200 (498 ms)
+[2026-06-29T13:55:01.553Z][INFO] project:list-packages --> 200 (447 ms)
+[2026-06-29T13:55:05.553Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:05.573Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:06.019Z][INFO] project:list-packages --> 200 (466 ms)
+[2026-06-29T13:55:06.020Z][INFO] project:list-packages --> 200 (447 ms)
+[2026-06-29T13:55:10.372Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:10.625Z][INFO] project:list-packages --> 200 (253 ms)
+[2026-06-29T13:55:10.962Z][INFO] config:project:get-registries <-- Request received
+params: {}
+[2026-06-29T13:55:10.966Z][INFO] config:project:get-registries --> 200 (4 ms)
+[2026-06-29T13:55:11.092Z][INFO] packages:get-all-packageinfo <-- Request received
+params: {}
+[2026-06-29T13:55:11.107Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:11.702Z][INFO] packages:get-all-packageinfo --> 200 (610 ms)
+[2026-06-29T13:55:11.872Z][INFO] project:list-packages --> 200 (765 ms)
+[2026-06-29T13:55:14.391Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:14.662Z][INFO] project:list-packages --> 200 (271 ms)
+[2026-06-29T13:55:16.548Z][INFO] packages:get-packageinfo <-- Request received
+params: {
+  "packageId": "com.unity.ai.assistant"
+}
+[2026-06-29T13:55:17.215Z][INFO] packages:get-packageinfo --> 200 (667 ms)
+[2026-06-29T13:55:54.592Z][INFO] project:list-packages <-- Request received
+params: {}
+[2026-06-29T13:55:54.816Z][INFO] project:list-packages --> 200 (224 ms)
