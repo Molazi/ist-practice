@@ -164,11 +164,84 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ----- Вода (без изменений) -----
-    void PourWater(Vector3 center) { /* ... ваш код ... */ }
-    float GetMinHeightInRadius(Vector3 center, float radius, Terrain terrain) { /* ... ваш код ... */ }
-    float FindEdgeDistance(Vector3 center, Vector3 dir, float minHeight, Terrain terrain) { /* ... ваш код ... */ }
-    void RemoveOldWater(Vector3 point, float radius) { /* ... ваш код ... */ }
+    // ----- Вода -----
+    void PourWater(Vector3 center)
+    {
+        Terrain terrain = Terrain.activeTerrain;
+        if (terrain == null) return;
+
+        float minHeight = GetMinHeightInRadius(center, waterMaxRadius, terrain);
+        float centerHeight = terrain.SampleHeight(center);
+        if (centerHeight - minHeight < 0.05f) return;
+
+        float waterLevel = minHeight + 0.02f;
+
+        List<Vector3> boundary = new List<Vector3>();
+        for (int i = 0; i < waterBoundaryRays; i++)
+        {
+            float angle = i * Mathf.PI * 2f / waterBoundaryRays;
+            Vector3 dir = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+            float dist = FindEdgeDistance(center, dir, minHeight, terrain);
+            Vector3 edgePoint = center + dir * dist;
+            boundary.Add(new Vector3(edgePoint.x, waterLevel, edgePoint.z));
+        }
+
+        if (boundary.Count < 3) return;
+
+        RemoveOldWater(center, waterCleanupRadius);
+
+        ProceduralWaterMesh water = Instantiate(waterPrefab, center, Quaternion.identity);
+        water.BuildFromBoundary(center, boundary.ToArray(), waterLevel);
+    }
+
+    float GetMinHeightInRadius(Vector3 center, float radius, Terrain terrain)
+    {
+        float min = Mathf.Infinity;
+        int steps = 10;
+        int pointsPerCircle = 16;
+        for (int i = 0; i <= steps; i++)
+        {
+            float r = radius * i / steps;
+            for (int j = 0; j < pointsPerCircle; j++)
+            {
+                float angle = j * Mathf.PI * 2f / pointsPerCircle;
+                Vector3 offset = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * r;
+                float h = terrain.SampleHeight(center + offset);
+                if (h < min) min = h;
+            }
+        }
+        return (min == Mathf.Infinity) ? 0f : min;
+    }
+
+    float FindEdgeDistance(Vector3 center, Vector3 dir, float minHeight, Terrain terrain)
+    {
+        float low = 0f;
+        float high = waterMaxRadius;
+        float threshold = minHeight + waterDepthThreshold;
+        const float precision = 0.01f;
+
+        if (terrain.SampleHeight(center + dir * high) <= threshold)
+            return high;
+
+        while (high - low > precision)
+        {
+            float mid = (low + high) * 0.5f;
+            float h = terrain.SampleHeight(center + dir * mid);
+            if (h > threshold) high = mid;
+            else low = mid;
+        }
+        return (low + high) * 0.5f;
+    }
+
+    void RemoveOldWater(Vector3 point, float radius)
+    {
+        ProceduralWaterMesh[] allWaters = FindObjectsByType<ProceduralWaterMesh>();
+        foreach (var w in allWaters)
+        {
+            if (Vector3.Distance(w.transform.position, point) <= radius)
+                Destroy(w.gameObject);
+        }
+    }
 
     // ----- Создание UI (полностью) -----
     void CreateUI()
