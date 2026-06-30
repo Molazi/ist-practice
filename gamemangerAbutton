@@ -77,14 +77,14 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        // Переключение UI по кнопке A (однократное нажатие)
-        if (toggleUIAction != null && toggleUIAction.action.WasPressedThisFrame())
+        // Переключение UI по кнопке A (однократное нажатие) с проверкой на null
+        if (toggleUIAction != null && toggleUIAction.action != null && toggleUIAction.action.WasPressedThisFrame())
         {
             ToggleUI();
         }
 
         // Инструменты работают только когда UI не активен
-        if (!uiActive && activateAction.action != null && activateAction.action.IsPressed())
+        if (!uiActive && activateAction != null && activateAction.action != null && activateAction.action.IsPressed())
         {
             if (Time.time - lastActionTime >= actionInterval)
             {
@@ -106,24 +106,32 @@ public class GameManager : MonoBehaviour
 
     void ToggleUI()
     {
+        // Дополнительная проверка (на случай, если вызовется до полной инициализации)
+        if (uiRoot == null) return;
+
         uiActive = !uiActive;
         if (uiActive)
         {
-            // Прикрепляем UI к камере, чтобы следовал за взглядом
             Camera cam = Camera.main;
             if (cam != null)
             {
                 uiRoot.transform.SetParent(cam.transform, false);
-                uiRoot.transform.localPosition = new Vector3(0, 0, 1.2f); // 1.2 метра перед лицом
+                uiRoot.transform.localPosition = new Vector3(0, 0, 1.2f);
                 uiRoot.transform.localRotation = Quaternion.identity;
-                uiRoot.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f); // комфортный размер
+                uiRoot.transform.localScale = new Vector3(0.003f, 0.003f, 0.003f);
+            }
+            else
+            {
+                // Если камера не найдена, размещаем в мире
+                uiRoot.transform.SetParent(null);
+                uiRoot.transform.position = new Vector3(0, 1.2f, 1.5f);
+                uiRoot.transform.LookAt(Vector3.zero);
             }
             uiRoot.SetActive(true);
         }
         else
         {
             uiRoot.SetActive(false);
-            // Отсоединяем от камеры, чтобы не болтался в иерархии
             uiRoot.transform.SetParent(null);
         }
     }
@@ -159,18 +167,15 @@ public class GameManager : MonoBehaviour
         return null;
     }
 
-    // ----- Создание UI (без изменений, только сохраняем ссылку на uiRoot) -----
+    // ----- Создание UI -----
     void CreateUI()
     {
-        // Canvas container
         uiRoot = new GameObject("FixedUI", typeof(RectTransform), typeof(Canvas));
-        // По умолчанию не привязан ни к чему
         uiRoot.transform.SetParent(null);
 
         Canvas canvas = uiRoot.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
 
-        // Добавляем TrackedDeviceGraphicRaycaster для VR-взаимодействия
         uiRoot.AddComponent<TrackedDeviceGraphicRaycaster>();
 
         RectTransform canvasRect = uiRoot.GetComponent<RectTransform>();
@@ -264,7 +269,7 @@ public class GameManager : MonoBehaviour
             AssignLayerRecursively(child.gameObject, layer);
     }
 
-    // ----- Вспомогательные методы создания UI (без изменений) -----
+    // ----- Вспомогательные методы создания UI -----
     TMP_Text CreateText(string name, Transform parent, string text, int fontSize, TextAlignmentOptions alignment)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
@@ -413,7 +418,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ----- Логика воды (без изменений) -----
+    // ----- Логика воды -----
     void PourWater(Vector3 center)
     {
         Terrain terrain = Terrain.activeTerrain;
