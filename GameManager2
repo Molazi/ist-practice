@@ -17,11 +17,9 @@ public class GameManager : MonoBehaviour
     public int waterBoundaryRays = 64;
     public float waterCleanupRadius = 6f;
 
-    // ========== Ray simulation ==========
-    public float maxDistance = 20f;
-    public float stepSize = 0.1f;
-
-    // ========== Tools settings ==========
+    // ========== Ray / Tool settings ==========
+    public float maxDistance = 20f;          // для Physics.Raycast
+    public float stepSize = 0.1f;           // больше не используется, но оставлено для совместимости
     public enum ToolMode { Dig, Raise, Paint, Water }
     public ToolMode currentMode = ToolMode.Dig;
     public float strength = 0.8f;
@@ -78,7 +76,6 @@ public class GameManager : MonoBehaviour
                 Transform activeController = GetActiveControllerTransform();
                 if (activeController != null)
                 {
-                    // Проверяем, не наведён ли луч на UI
                     XRRayInteractor rayInteractor = GetRayInteractorForController(activeController);
                     bool isOverUI = (rayInteractor != null) && rayInteractor.IsOverUIGameObject();
 
@@ -93,7 +90,7 @@ public class GameManager : MonoBehaviour
         UpdateUI();
     }
 
-    // ----- Поиск контроллеров по имени (надёжный, не зависит от версий XRI) -----
+    // ----- Поиск контроллеров по имени -----
     Transform FindControllerTransform(string name)
     {
         Transform[] allTransforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -124,40 +121,37 @@ public class GameManager : MonoBehaviour
         return null;
     }
 
-    // ----- Создание интерфейса -----
+    // ----- Создание UI в фиксированной точке -----
     void CreateUI()
     {
-        Transform leftHand = GetLeftHandTransform();
-        if (leftHand == null)
-        {
-            Debug.LogError("Left hand controller not found! UI won't be created.");
-            return;
-        }
-
-        // Canvas container (используем TrackedDeviceGraphicRaycaster вместо GraphicRaycaster)
-        GameObject wristUI = new GameObject("WristUI", typeof(RectTransform), typeof(Canvas));
-        wristUI.transform.SetParent(leftHand, false);
-        wristUI.transform.localPosition = new Vector3(0, 0.05f, 0.1f);
-        wristUI.transform.localRotation = Quaternion.identity;
-        wristUI.transform.localScale = new Vector3(0.002f, 0.002f, 0.002f); // масштаб не трогаем
+        // Размещаем Canvas в мире перед игроком (точка спавна)
+        GameObject wristUI = new GameObject("FixedUI", typeof(RectTransform), typeof(Canvas));
+        wristUI.transform.SetParent(null); // не привязываем к руке
+        wristUI.transform.position = new Vector3(0, 1.2f, 1.5f);
+        wristUI.transform.localScale = new Vector3(0.004f, 0.004f, 0.004f); // примерно 1.6x1м
 
         Canvas canvas = wristUI.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
-        // НЕ назначаем worldCamera
 
-        // Добавляем TrackedDeviceGraphicRaycaster
+        // Разворачиваем к камере (игроку)
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+            wristUI.transform.LookAt(mainCam.transform);
+        else
+            wristUI.transform.rotation = Quaternion.LookRotation(Vector3.back); // запасной вариант
+
+        // Добавляем TrackedDeviceGraphicRaycaster для VR-взаимодействия
         TrackedDeviceGraphicRaycaster trackedRaycaster = wristUI.AddComponent<TrackedDeviceGraphicRaycaster>();
 
         RectTransform canvasRect = wristUI.GetComponent<RectTransform>();
         canvasRect.sizeDelta = new Vector2(400, 250);
 
-        // Назначаем слой UI
+        // Слой UI для корректной работы лучей
         wristUI.layer = LayerMask.NameToLayer("UI");
-        foreach (Transform child in wristUI.transform)
-        {
-            child.gameObject.layer = LayerMask.NameToLayer("UI");
-        }
+        // Всем дочерним элементам тоже назначим слой UI
+        AssignLayerRecursively(wristUI, LayerMask.NameToLayer("UI"));
 
+        // ----- Создание элементов интерфейса (как раньше) -----
         // Background panel
         GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         panel.transform.SetParent(wristUI.transform, false);
@@ -235,7 +229,15 @@ public class GameManager : MonoBehaviour
         nextLayerButton.onClick.AddListener(NextPaintLayer);
     }
 
-    // ----- Вспомогательные методы создания UI -----
+    // Рекурсивное назначение слоя всем дочерним объектам
+    void AssignLayerRecursively(GameObject obj, int layer)
+    {
+        obj.layer = layer;
+        foreach (Transform child in obj.transform)
+            AssignLayerRecursively(child.gameObject, layer);
+    }
+
+    // ----- Вспомогательные методы создания UI (без изменений) -----
     TMP_Text CreateText(string name, Transform parent, string text, int fontSize, TextAlignmentOptions alignment)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
@@ -349,24 +351,19 @@ public class GameManager : MonoBehaviour
         return slider;
     }
 
-    // ----- Действие на террайне -----
+    // ----- УПРОЩЁННОЕ ДЕЙСТВИЕ С ТЕРРАЙНОМ (Physics.Raycast) -----
     void ExecuteAction(Transform controllerTransform)
     {
         Terrain terrain = Terrain.activeTerrain;
         if (terrain == null) return;
 
-        Vector3 origin = controllerTransform.position;
-        Vector3 direction = (controllerTransform.forward * 0.5f - controllerTransform.up).normalized;
-
-        for (float dist = 0; dist < maxDistance; dist += stepSize)
+        Ray ray = new Ray(controllerTransform.position, controllerTransform.forward);
+        if (Physics.Raycast(ray, out RaycastHit hit, maxDistance))
         {
-            Vector3 samplePoint = origin + direction * dist;
-            float terrainHeight = terrain.SampleHeight(samplePoint);
-            if (samplePoint.y <= terrainHeight)
+            // Проверяем, что попали именно в террейн
+            if (hit.collider.GetComponent<Terrain>() != null)
             {
-                Vector3 hitPoint = new Vector3(samplePoint.x, terrainHeight, samplePoint.z);
-                PerformAction(hitPoint);
-                break;
+                PerformAction(hit.point);
             }
         }
     }
@@ -389,7 +386,6 @@ public class GameManager : MonoBehaviour
                 break;
         }
     }
-
     // ----- Логика воды -----
     void PourWater(Vector3 center)
     {
