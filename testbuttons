@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.InputSystem.XR;
 
 public class DebugInputActions : MonoBehaviour
 {
@@ -15,16 +17,16 @@ public class DebugInputActions : MonoBehaviour
 
     private void OnInputEvent(InputEventPtr eventPtr, InputDevice device)
     {
-        // Фильтруем только события от контроллеров (XR-контроллеры, клавиатура, мышь)
-        if (device is UnityEngine.InputSystem.XR.XRController ||
-            device is Mouse ||
-            device is Keyboard)
+        // Фильтруем только XR-контроллеры, клавиатуру, мышь (чтобы не шумело)
+        if (device is XRController || device is Mouse || device is Keyboard)
         {
-            foreach (InputControl control in eventPtr.EnumerateControls())
+            // Перебираем все контролы, изменённые в этом событии
+            foreach (InputControl control in eventPtr.EnumerateControls(InputControlExtensions.Enumerate.IncludeNonLeafControls))
             {
-                if (control.IsPressed())
+                // Если контроль – кнопка и она нажата в этом кадре
+                if (control is ButtonControl button && button.wasPressedThisFrame)
                 {
-                    Debug.Log($"Device: {device.displayName}, Control: {control.path}, Value: {control.ReadValueAsObject()}");
+                    Debug.Log($"Device: {device.displayName}, Button: {control.path}, Value: {button.ReadValue()}");
                 }
             }
         }
