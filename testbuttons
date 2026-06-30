@@ -3,49 +3,30 @@ using UnityEngine.InputSystem;
 
 public class DebugInputActions : MonoBehaviour
 {
-    [Tooltip("Перетащи сюда XRI Default Input Actions")]
-    public InputActionAsset inputActionAsset;
-
-    private void OnEnable()
+    void OnEnable()
     {
-        if (inputActionAsset == null)
-        {
-            Debug.LogError("DebugInputActions: Input Action Asset не назначен!");
-            return;
-        }
-
-        // Перебираем все Action Maps и все Actions внутри них
-        foreach (InputActionMap actionMap in inputActionAsset.actionMaps)
-        {
-            foreach (InputAction action in actionMap.actions)
-            {
-                action.performed += OnActionPerformed;
-            }
-        }
-
-        // Включаем весь ассет
-        inputActionAsset.Enable();
-        Debug.Log("DebugInputActions: слушаем все действия из " + inputActionAsset.name);
+        InputSystem.onEvent += OnInputEvent;
     }
 
-    private void OnDisable()
+    void OnDisable()
     {
-        if (inputActionAsset == null) return;
-
-        foreach (InputActionMap actionMap in inputActionAsset.actionMaps)
-        {
-            foreach (InputAction action in actionMap.actions)
-            {
-                action.performed -= OnActionPerformed;
-            }
-        }
-
-        inputActionAsset.Disable();
+        InputSystem.onEvent -= OnInputEvent;
     }
 
-    private void OnActionPerformed(InputAction.CallbackContext context)
+    private void OnInputEvent(InputEventPtr eventPtr, InputDevice device)
     {
-        // Выводим имя Action Map и имя Action, а также значение (для осей/векторов)
-        Debug.Log($"Action: {context.action.actionMap.name}/{context.action.name} | Value: {context.ReadValueAsObject()}");
+        // Фильтруем только события от контроллеров (XR-контроллеры, клавиатура, мышь)
+        if (device is UnityEngine.InputSystem.XR.XRController ||
+            device is Mouse ||
+            device is Keyboard)
+        {
+            foreach (InputControl control in eventPtr.EnumerateControls())
+            {
+                if (control.IsPressed())
+                {
+                    Debug.Log($"Device: {device.displayName}, Control: {control.path}, Value: {control.ReadValueAsObject()}");
+                }
+            }
+        }
     }
 }
