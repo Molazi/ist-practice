@@ -1,0 +1,51 @@
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class DebugInputActions : MonoBehaviour
+{
+    [Tooltip("Перетащи сюда XRI Default Input Actions")]
+    public InputActionAsset inputActionAsset;
+
+    private void OnEnable()
+    {
+        if (inputActionAsset == null)
+        {
+            Debug.LogError("DebugInputActions: Input Action Asset не назначен!");
+            return;
+        }
+
+        // Перебираем все Action Maps и все Actions внутри них
+        foreach (InputActionMap actionMap in inputActionAsset.actionMaps)
+        {
+            foreach (InputAction action in actionMap.actions)
+            {
+                action.performed += OnActionPerformed;
+            }
+        }
+
+        // Включаем весь ассет
+        inputActionAsset.Enable();
+        Debug.Log("DebugInputActions: слушаем все действия из " + inputActionAsset.name);
+    }
+
+    private void OnDisable()
+    {
+        if (inputActionAsset == null) return;
+
+        foreach (InputActionMap actionMap in inputActionAsset.actionMaps)
+        {
+            foreach (InputAction action in actionMap.actions)
+            {
+                action.performed -= OnActionPerformed;
+            }
+        }
+
+        inputActionAsset.Disable();
+    }
+
+    private void OnActionPerformed(InputAction.CallbackContext context)
+    {
+        // Выводим имя Action Map и имя Action, а также значение (для осей/векторов)
+        Debug.Log($"Action: {context.action.actionMap.name}/{context.action.name} | Value: {context.ReadValueAsObject()}");
+    }
+}
