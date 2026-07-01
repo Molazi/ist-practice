@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: d1fdb8e44b28da34d9e922cca0bc740e, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -992,6 +992,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: vedro
       objectReference: {fileID: 0}
+    - target: {fileID: 7829347976580649473, guid: 8a5744661f191ee4c968bf709f302dc7, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8020872188276163685, guid: 8a5744661f191ee4c968bf709f302dc7, type: 3}
       propertyPath: m_UseGravity
       value: 1
@@ -1046,6 +1050,10 @@ PrefabInstance:
     - target: {fileID: 4842288816381948213, guid: 7f1e18b736a433345bbf3a8181ced87f, type: 3}
       propertyPath: m_Name
       value: lopata
+      objectReference: {fileID: 0}
+    - target: {fileID: 4842288816381948213, guid: 7f1e18b736a433345bbf3a8181ced87f, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5222087223569722255, guid: 7f1e18b736a433345bbf3a8181ced87f, type: 3}
       propertyPath: m_LocalScale.x
@@ -1202,7 +1210,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 108.17
+      value: 62.41
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalPosition.y
@@ -1240,6 +1248,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2998152119438995280, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5227292470352409039, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1254,6 +1270,37 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 332027662}
   m_SourcePrefab: {fileID: 100100000, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+--- !u!1 &1152176185
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1152176186}
+  m_Layer: 0
+  m_Name: SpawnPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1152176186
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1152176185}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 59.95, y: 12.51, z: 85.14}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1185282674 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4842288816381948213, guid: 7f1e18b736a433345bbf3a8181ced87f, type: 3}
@@ -1314,7 +1361,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &1244887496
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1614,13 +1661,19 @@ MonoBehaviour:
   waterDepthThreshold: 0.05
   waterBoundaryRays: 128
   waterCleanupRadius: 6
+  uiStyle: {fileID: 11400000, guid: 7050a79898247f64ebad0ceb141b2177, type: 2}
   maxDistance: 100
   currentMode: 0
-  strength: 0.8
+  strength: 0.02
   brushSize: 2.5
   paintLayer: 0
   paintStrength: 0.5
   actionInterval: 0.05
+  originalTerrainData: {fileID: 15600000, guid: 805276c09cbda2a44aa5d66cee06e583, type: 2}
+  rayForwardWeight: 0.7
+  rayDownWeight: 0.3
+  laserColor: {r: 1, g: 0, b: 0, a: 1}
+  laserWidth: 0.02
   activateAction:
     m_UseReference: 1
     m_Action:
@@ -1645,6 +1698,8 @@ MonoBehaviour:
       m_SingletonActionBindings: []
       m_Flags: 0
     m_Reference: {fileID: 187161793506945269, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  uiDistance: 1.6
+  uiScale: {x: 0.003, y: 0.003, z: 0.003}
 --- !u!1 &1305649876 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1767192433, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
@@ -1924,6 +1979,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Terrain
       objectReference: {fileID: 0}
+    - target: {fileID: 5328263281589097974, guid: 27e5be6b3c70a5747985679ac877d5d5, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1946,3 +2005,4 @@ SceneRoots:
   - {fileID: 1951867165}
   - {fileID: 1246732380}
   - {fileID: 1845888626}
+  - {fileID: 1152176186}
