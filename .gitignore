@@ -1,0 +1,30 @@
+# Временные папки Unity
+/[L|l]ibrary/
+/[T|t]emp/
+/[O|o]bj/
+/[B|b]uild/
+/[B|b]uilds/
+/[L|l]ogs/
+/[U|u]ser[D|d]ata/
+
+# Файлы решений Visual Studio / Rider
+/*.sln
+/*.csproj
+/*.unityproj
+/*.suo
+/*.user
+/*.userprefs
+/*.pidb
+/*.ipch
+/*.dyn
+/*.openeddf
+/*.opendb
+/*.VC.db
+
+# Кэш операционных систем
+.DS_Store
+Thumbs.db
+
+# Кэш пакетов
+/[P|p]ackages/manifest-lock.json
+/[P|p]ackages/packages-lock.json
