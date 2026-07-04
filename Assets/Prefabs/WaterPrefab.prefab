@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8486687148797053506}
   - component: {fileID: 1765955589175317555}
   - component: {fileID: 4524928287716913676}
-  m_Layer: 0
+  m_Layer: 4
   m_Name: WaterPrefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -103,4 +103,3 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e97c1ad2c0728b24d98b1ffdaa5043fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralWaterMesh
-  stencilMaskMaterial: {fileID: 2100000, guid: e88a83c1fbff12842aa6a1e106713cdf, type: 2}

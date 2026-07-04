@@ -1,30 +1,29 @@
-# Временные папки Unity
-/[L|l]ibrary/
-/[T|t]emp/
-/[O|o]bj/
-/[B|b]uild/
-/[B|b]uilds/
-/[L|l]ogs/
-/[U|u]ser[D|d]ata/
+# Временные папки и кэш Unity
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
 
-# Файлы решений Visual Studio / Rider
-/*.sln
-/*.csproj
-/*.unityproj
-/*.suo
-/*.user
-/*.userprefs
-/*.pidb
-/*.ipch
-/*.dyn
-/*.openeddf
-/*.opendb
-/*.VC.db
+# Файлы и кэш Visual Studio / Rider / VS Code
+.vs/
+.vsconfig
+*.sln
+*.csproj
+*.unityproj
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.VC.db
 
-# Кэш операционных систем
+# Конфиги операционных систем
 .DS_Store
 Thumbs.db
-
-# Кэш пакетов
-/[P|p]ackages/manifest-lock.json
-/[P|p]ackages/packages-lock.json
