@@ -102,4 +102,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e97c1ad2c0728b24d98b1ffdaa5043fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralWaterMesh
-  waterMaterial: {fileID: 2100000, guid: 6fce247837d070c4e9de2b2016261db8, type: 2}
+  waterMaterial: {fileID: 2100000, guid: 141d9d6ca43b6c843965491604c6deff, type: 2}

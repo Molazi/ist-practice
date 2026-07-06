@@ -290,78 +290,99 @@ public class GameManager : MonoBehaviour
     }
 
     // ================= ВОДА (исходный алгоритм) =================
-    void PourWater(Vector3 center)
+    void PourWater(Vector3 clickPoint)
     {
         if (targetTerrain == null) return;
 
-        float bottomHeight = targetTerrain.SampleHeight(center);
-        int rays = Mathf.Max(waterBoundaryRays, 64);
-        float maxSearchRadius = 50f;
-        float step = 0.05f;
-        float[] maxHeights = new float[rays];
-        List<Vector3> contourPoints = new List<Vector3>();
+        float clickHeight = targetTerrain.SampleHeight(clickPoint);
+        int rays = Mathf.Max(waterBoundaryRays, 64);   // чем больше, тем плавнее край
+        float maxSearchRadius = 50f;                    // максимальный радиус сканирования
+        float step = 0.05f;                             // точность сканирования
 
-        // Первый проход: максимумы по лучам
+        float[] maxHeights = new float[rays];
+        List<Vector3> boundaryPoints = new List<Vector3>();
+
+        // Первый проход: ищем максимальную высоту земли по каждому лучу
         for (int i = 0; i < rays; i++)
         {
             float angle = i * Mathf.PI * 2f / rays;
             Vector3 dir = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-            float maxH = bottomHeight;
+            float maxH = clickHeight;
             float dist = 0f;
             while (dist < maxSearchRadius)
             {
-                Vector3 testPoint = center + dir * dist;
+                Vector3 testPoint = clickPoint + dir * dist;
                 float h = targetTerrain.SampleHeight(testPoint);
                 if (h > maxH) maxH = h;
-                dist += step * 4;
+                dist += step * 4;   // шаг для первого прохода (можно увеличить для скорости)
             }
             maxHeights[i] = maxH;
         }
 
-        float waterLevel = Mathf.Min(maxHeights);
-        if (waterLevel - bottomHeight < 0.15f) return;
+        // Уровень воды = минимум из максимальных высот (самый низкий гребень)
+        float overflowEdge = Mathf.Min(maxHeights);
+        float waterLevel = overflowEdge - 0.02f;   // отступ от края 2 см
 
-        // Второй проход: точки контура на уровне waterLevel
+        // Проверяем, что это действительно яма, а не ровная поверхность
+        if (waterLevel - clickHeight < 0.15f)
+        {
+            Debug.Log("Слишком мелко для лужи");
+            return;
+        }
+
+        // Второй проход: находим точки контура на уровне waterLevel
         for (int i = 0; i < rays; i++)
         {
             float angle = i * Mathf.PI * 2f / rays;
             Vector3 dir = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-            float prevDist = 0f, prevHeight = bottomHeight, dist = 0f;
+            float prevDist = 0f, prevHeight = clickHeight, dist = 0f;
             bool found = false;
+
             while (dist < maxSearchRadius)
             {
-                Vector3 testPoint = center + dir * dist;
+                Vector3 testPoint = clickPoint + dir * dist;
                 float h = targetTerrain.SampleHeight(testPoint);
                 if (h >= waterLevel)
                 {
+                    // Линейная интерполяция для точной границы
                     float t = 0f;
                     if (Mathf.Abs(h - prevHeight) > 0.0001f)
                         t = (waterLevel - prevHeight) / (h - prevHeight);
                     float contourDist = prevDist + t * (dist - prevDist);
-                    Vector3 contourPoint = center + dir * contourDist;
+                    Vector3 contourPoint = clickPoint + dir * contourDist;
                     contourPoint.y = waterLevel;
-                    contourPoints.Add(contourPoint);
+                    boundaryPoints.Add(contourPoint);
                     found = true;
                     break;
                 }
-                prevDist = dist; prevHeight = h;
+                prevDist = dist;
+                prevHeight = h;
                 dist += step;
             }
             if (!found)
             {
-                Vector3 farPoint = center + dir * maxSearchRadius;
+                // Если край не найден (например, очень пологая яма), берём точку на максимальной дистанции
+                Vector3 farPoint = clickPoint + dir * maxSearchRadius;
                 farPoint.y = waterLevel;
-                contourPoints.Add(farPoint);
+                boundaryPoints.Add(farPoint);
             }
         }
 
-        if (contourPoints.Count < 3) return;
+        if (boundaryPoints.Count < 3)
+        {
+            Debug.Log("Недостаточно точек контура");
+            return;
+        }
 
-        Vector3 waterCenter = new Vector3(center.x, waterLevel, center.z);
+        Vector3 waterCenter = new Vector3(clickPoint.x, waterLevel, clickPoint.z);
+
+        // Удаляем старую воду в этой области
         RemoveOldWater(waterCenter, waterCleanupRadius);
+
+        // Создаём объект воды
         ProceduralWaterMesh water = Instantiate(waterPrefab, waterCenter, Quaternion.identity);
         water.transform.localScale = Vector3.one;
-        water.BuildFromBoundary(waterCenter, contourPoints.ToArray(), waterLevel);
+        water.BuildFromBoundary(waterCenter, boundaryPoints.ToArray(), waterLevel);
     }
 
     void RemoveOldWater(Vector3 position, float radius)
