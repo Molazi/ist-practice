@@ -1688,11 +1688,11 @@ MonoBehaviour:
   paintParticleCount: 20
   paintParticleSize: 0.04
   paintParticleForce: 0.8
-  waterParticleCount: 50
+  waterParticleCount: 200
   waterParticleSize: 0.1
-  waterParticleForce: 3.5
+  waterParticleForce: 6
   rayDownAngle: 5
-  laserColor: {r: 1, g: 0, b: 0.047946095, a: 1}
+  laserColor: {r: 0, g: 1, b: 0.07855177, a: 1}
   laserWidth: 0.015
   activateAction:
     m_UseReference: 1
@@ -1718,6 +1718,11 @@ MonoBehaviour:
       m_SingletonActionBindings: []
       m_Flags: 0
     m_Reference: {fileID: 187161793506945269, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  grassLayerIndex: 0
+  soilLayerIndex: 4
+  rockLayerIndex: 7
+  rockHeight: 300
+  soilHeight: 500
   uiDistance: 2.2
   uiScale: {x: 0.0025, y: 0.0025, z: 0.0025}
 --- !u!1 &1305649876 stripped
@@ -6918,6 +6923,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1033489138817457020, guid: 27e5be6b3c70a5747985679ac877d5d5, type: 3}
+      propertyPath: m_ShadowCastingMode
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5191644410788971256, guid: 27e5be6b3c70a5747985679ac877d5d5, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.0011

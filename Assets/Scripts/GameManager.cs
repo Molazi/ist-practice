@@ -9,7 +9,7 @@ public class GameManager : MonoBehaviour
 {
     // ========== Water ==========
     [Header("Water Settings")]
-    public float waterEdgeOffset = 0.02f; // отступ воды от края ямы в метрах
+    public float waterEdgeOffset = 0.02f;
     public ProceduralWaterMesh waterPrefab;
     public float waterMaxRadius = 5f;
     public float waterDepthThreshold = 0.05f;
@@ -35,15 +35,12 @@ public class GameManager : MonoBehaviour
     public int digParticleCount = 12;
     public float digParticleSize = 0.05f;
     public float digParticleForce = 0.8f;
-
     public int raiseParticleCount = 12;
     public float raiseParticleSize = 0.05f;
     public float raiseParticleForce = 0.8f;
-
     public int paintParticleCount = 20;
     public float paintParticleSize = 0.04f;
     public float paintParticleForce = 0.8f;
-
     public int waterParticleCount = 50;
     public float waterParticleSize = 0.1f;
     public float waterParticleForce = 3.5f;
@@ -51,7 +48,6 @@ public class GameManager : MonoBehaviour
     // ========== Луч ==========
     [Header("Ray Settings")]
     public float rayDownAngle = 20f;
-
     [Header("Laser Visual")]
     public Color laserColor = Color.red;
     public float laserWidth = 0.02f;
@@ -59,6 +55,14 @@ public class GameManager : MonoBehaviour
     // ========== Activation (Grip) ==========
     public InputActionProperty activateAction;
     public InputActionProperty toggleUIAction;
+
+    // ========== Высотные слои ==========
+    [Header("Высотные слои текстур")]
+    public int grassLayerIndex = 0;
+    public int soilLayerIndex = 1;
+    public int rockLayerIndex = 2;
+    public float rockHeight = 200f;
+    public float soilHeight = 400f;
 
     // ========== UI ==========
     private GameObject uiRoot;
@@ -71,9 +75,11 @@ public class GameManager : MonoBehaviour
     private Button digButton, raiseButton, paintButton, waterButton;
     private Slider strengthSlider, brushSizeSlider, paintStrengthSlider;
     private Button prevLayerButton, nextLayerButton;
+    private Button clearWaterButton;
+    private Button undoWaterButton;
+    private List<ProceduralWaterMesh> waterHistory = new List<ProceduralWaterMesh>();
 
     private float lastActionTime = 0f;
-
     public float uiDistance = 1.8f;
     public Vector3 uiScale = new Vector3(0.004f, 0.004f, 0.004f);
     private float lastUIDistance;
@@ -82,23 +88,18 @@ public class GameManager : MonoBehaviour
     private LineRenderer laserLine;
     private Transform rightController;
 
-    // Сохранение ландшафта
     private float[,] originalHeights;
     private float[,,] originalAlphamaps;
     private TerrainData currentTerrainData;
 
-    // Позиции для сдвига UI
     private Vector2 strengthTextOrigPos, strengthSliderOrigPos;
     private Vector2 paintStrengthTextOrigPos, paintStrengthSliderOrigPos;
     private Vector2 prevLayerOrigPos, nextLayerOrigPos, layerTextOrigPos;
 
     void Awake()
     {
-        if (targetTerrain == null)
-            targetTerrain = Terrain.activeTerrain;
-        if (targetTerrain != null)
-            currentTerrainData = targetTerrain.terrainData;
-
+        if (targetTerrain == null) targetTerrain = Terrain.activeTerrain;
+        if (targetTerrain != null) currentTerrainData = targetTerrain.terrainData;
         CreateUI();
         if (uiRoot != null) uiRoot.SetActive(false);
         lastUIDistance = uiDistance;
@@ -119,25 +120,21 @@ public class GameManager : MonoBehaviour
         ResetTerrainToOriginal();
     }
 
-    void OnDestroy()
-    {
-        ResetTerrainToOriginal();
-    }
+    void OnDestroy() => ResetTerrainToOriginal();
 
     void ResetTerrainToOriginal()
     {
         if (currentTerrainData == null || originalHeights == null) return;
         currentTerrainData.SetHeights(0, 0, originalHeights);
-        if (originalAlphamaps != null)
-            currentTerrainData.SetAlphamaps(0, 0, originalAlphamaps);
+        if (originalAlphamaps != null) currentTerrainData.SetAlphamaps(0, 0, originalAlphamaps);
         currentTerrainData.SyncHeightmap();
     }
 
     void CreateLaser()
     {
-        GameObject laserObj = new GameObject("Laser");
-        laserObj.transform.SetParent(transform);
-        laserLine = laserObj.AddComponent<LineRenderer>();
+        GameObject obj = new GameObject("Laser");
+        obj.transform.SetParent(transform);
+        laserLine = obj.AddComponent<LineRenderer>();
         laserLine.startWidth = laserWidth;
         laserLine.endWidth = laserWidth;
         laserLine.material = new Material(Shader.Find("Sprites/Default"));
@@ -149,34 +146,31 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        if (toggleUIAction != null && toggleUIAction.action != null && toggleUIAction.action.WasPressedThisFrame())
+        if (toggleUIAction.action != null && toggleUIAction.action.WasPressedThisFrame())
             ToggleUI();
 
-        bool gripPressed = activateAction != null && activateAction.action != null && activateAction.action.IsPressed();
-        bool gripJustPressed = activateAction != null && activateAction.action != null && activateAction.action.WasPressedThisFrame();
+        bool grip = activateAction.action != null && activateAction.action.IsPressed();
+        bool just = activateAction.action != null && activateAction.action.WasPressedThisFrame();
 
-        UpdateLaser(gripPressed);
+        UpdateLaser(grip);
 
         if (!uiActive)
         {
             if (currentMode == ToolMode.Water)
             {
-                if (gripJustPressed)
+                if (just)
                 {
                     Transform controller = GetRightController();
                     if (controller != null) ExecuteAction(controller);
                 }
             }
-            else if (gripPressed)
+            else if (grip && Time.time - lastActionTime >= actionInterval)
             {
-                if (Time.time - lastActionTime >= actionInterval)
+                Transform controller = GetRightController();
+                if (controller != null)
                 {
-                    Transform controller = GetRightController();
-                    if (controller != null)
-                    {
-                        ExecuteAction(controller);
-                        lastActionTime = Time.time;
-                    }
+                    ExecuteAction(controller);
+                    lastActionTime = Time.time;
                 }
             }
         }
@@ -195,21 +189,19 @@ public class GameManager : MonoBehaviour
         UpdateUI();
     }
 
-    void UpdateLaser(bool gripPressed)
+    void UpdateLaser(bool pressed)
     {
-        if (laserLine == null) return;
-        Transform controller = GetRightController();
-        if (controller == null) { laserLine.enabled = false; return; }
-
-        Vector3 direction = Quaternion.AngleAxis(rayDownAngle, controller.right) * controller.forward;
-        Ray ray = new Ray(controller.position, direction);
-        int layerMask = 1 << LayerMask.NameToLayer("Terrain");
-        if (layerMask == 0) layerMask = -1;
-
-        if (gripPressed && Physics.Raycast(ray, out RaycastHit hit, maxDistance, layerMask))
+        if (!laserLine) return;
+        Transform c = GetRightController();
+        if (!c) { laserLine.enabled = false; return; }
+        Vector3 dir = Quaternion.AngleAxis(rayDownAngle, c.right) * c.forward;
+        Ray ray = new Ray(c.position, dir);
+        int mask = 1 << LayerMask.NameToLayer("Terrain");
+        if (mask == 0) mask = -1;
+        if (pressed && Physics.Raycast(ray, out RaycastHit hit, maxDistance, mask))
         {
             laserLine.enabled = true;
-            laserLine.SetPosition(0, controller.position);
+            laserLine.SetPosition(0, c.position);
             laserLine.SetPosition(1, hit.point);
         }
         else laserLine.enabled = false;
@@ -217,24 +209,21 @@ public class GameManager : MonoBehaviour
 
     Transform GetRightController()
     {
-        if (rightController == null || !rightController.gameObject.activeInHierarchy)
-        {
-            Transform[] all = FindObjectsByType<Transform>(FindObjectsInactive.Include);
-            foreach (Transform t in all)
-                if (t.name == "RightHand Controller" || t.name == "Right Controller" || t.name.Contains("Right"))
-                { rightController = t; break; }
-        }
+        if (rightController && rightController.gameObject.activeInHierarchy) return rightController;
+        foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include))
+            if (t.name == "RightHand Controller" || t.name == "Right Controller" || t.name.Contains("Right"))
+            { rightController = t; break; }
         return rightController;
     }
 
     void ToggleUI()
     {
-        if (uiRoot == null) return;
+        if (!uiRoot) return;
         uiActive = !uiActive;
         if (uiActive)
         {
             Camera cam = Camera.main;
-            if (cam != null)
+            if (cam)
             {
                 uiRoot.transform.SetParent(cam.transform, false);
                 uiRoot.transform.localPosition = new Vector3(0, 0, uiDistance);
@@ -244,28 +233,23 @@ public class GameManager : MonoBehaviour
             else
             {
                 uiRoot.transform.SetParent(null);
-                uiRoot.transform.position = new Vector3(0, 2.0f, 1.5f);
+                uiRoot.transform.position = new Vector3(0, 2, 1.5f);
                 uiRoot.transform.LookAt(Vector3.zero);
             }
             uiRoot.SetActive(true);
         }
-        else
-        {
-            uiRoot.SetActive(false);
-            uiRoot.transform.SetParent(null);
-        }
+        else { uiRoot.SetActive(false); uiRoot.transform.SetParent(null); }
     }
 
-    void ExecuteAction(Transform controllerTransform)
+    void ExecuteAction(Transform ctrl)
     {
-        if (targetTerrain == null) return;
-        Vector3 direction = Quaternion.AngleAxis(rayDownAngle, controllerTransform.right) * controllerTransform.forward;
-        int layerMask = 1 << LayerMask.NameToLayer("Terrain");
-        if (layerMask == 0) layerMask = -1;
-        Ray ray = new Ray(controllerTransform.position, direction);
-        if (Physics.Raycast(ray, out RaycastHit hit, maxDistance, layerMask))
-            if (hit.collider.GetComponent<Terrain>() != null)
-                PerformAction(hit.point);
+        if (!targetTerrain) return;
+        Vector3 dir = Quaternion.AngleAxis(rayDownAngle, ctrl.right) * ctrl.forward;
+        int mask = 1 << LayerMask.NameToLayer("Terrain");
+        if (mask == 0) mask = -1;
+        Ray ray = new Ray(ctrl.position, dir);
+        if (Physics.Raycast(ray, out RaycastHit hit, maxDistance, mask))
+            if (hit.collider.GetComponent<Terrain>()) PerformAction(hit.point);
     }
 
     void PerformAction(Vector3 worldPos)
@@ -274,10 +258,12 @@ public class GameManager : MonoBehaviour
         {
             case ToolMode.Dig:
                 TerrainDeformer.Deform(targetTerrain, worldPos, -strength * Time.deltaTime, brushSize);
+                PaintTerrainByHeight(worldPos);
                 SpawnPhysicsParticles(worldPos, new Color(0.77f, 0.64f, 0.52f), digParticleCount, digParticleSize, 1.5f, digParticleForce);
                 break;
             case ToolMode.Raise:
                 TerrainDeformer.Deform(targetTerrain, worldPos, strength * Time.deltaTime, brushSize);
+                PaintTerrainByHeight(worldPos);
                 SpawnPhysicsParticles(worldPos, new Color(0.77f, 0.64f, 0.52f), raiseParticleCount, raiseParticleSize, 1.5f, raiseParticleForce);
                 break;
             case ToolMode.Paint:
@@ -291,129 +277,156 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // ================= ВОДА (исходный алгоритм) =================
     void PourWater(Vector3 clickPoint)
     {
-        if (targetTerrain == null) return;
-
+        if (!targetTerrain) return;
         float clickHeight = targetTerrain.SampleHeight(clickPoint);
         int rays = Mathf.Max(waterBoundaryRays, 64);
-        float maxSearchRadius = 50f;
-        float step = 0.05f;
-
+        float maxR = 50f, step = 0.05f;
         float[] maxHeights = new float[rays];
-        List<Vector3> boundaryPoints = new List<Vector3>();
+        List<Vector3> contour = new List<Vector3>();
 
-        // Первый проход: максимальные высоты по лучам
         for (int i = 0; i < rays; i++)
         {
             float angle = i * Mathf.PI * 2f / rays;
             Vector3 dir = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
             float maxH = clickHeight;
-            float dist = 0f;
-            while (dist < maxSearchRadius)
+            for (float d = 0; d < maxR; d += step * 4)
             {
-                Vector3 testPoint = clickPoint + dir * dist;
-                float h = targetTerrain.SampleHeight(testPoint);
+                float h = targetTerrain.SampleHeight(clickPoint + dir * d);
                 if (h > maxH) maxH = h;
-                dist += step * 4;
             }
             maxHeights[i] = maxH;
         }
 
-        // Уровень перелива – самый низкий гребень
-        float overflowEdge = Mathf.Min(maxHeights);
-        // Уровень воды с настраиваемым отступом
-        float waterLevel = overflowEdge - waterEdgeOffset;
+        float overflow = Mathf.Min(maxHeights);
+        float waterLevel = overflow - waterEdgeOffset;
+        if (waterLevel - clickHeight < 0.15f) return;
 
-        // Не создаём лужу в слишком мелкой яме
-        if (waterLevel - clickHeight < 0.15f)
-        {
-            Debug.Log("Слишком мелко для лужи");
-            return;
-        }
-
-        // Второй проход: контур на уровне waterLevel
         for (int i = 0; i < rays; i++)
         {
             float angle = i * Mathf.PI * 2f / rays;
             Vector3 dir = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-            float prevDist = 0f, prevHeight = clickHeight, dist = 0f;
+            float prevDist = 0, prevHeight = clickHeight, dist = 0;
             bool found = false;
-
-            while (dist < maxSearchRadius)
+            while (dist < maxR)
             {
-                Vector3 testPoint = clickPoint + dir * dist;
-                float h = targetTerrain.SampleHeight(testPoint);
+                Vector3 p = clickPoint + dir * dist;
+                float h = targetTerrain.SampleHeight(p);
                 if (h >= waterLevel)
                 {
-                    float t = 0f;
-                    if (Mathf.Abs(h - prevHeight) > 0.0001f)
-                        t = (waterLevel - prevHeight) / (h - prevHeight);
-                    float contourDist = prevDist + t * (dist - prevDist);
-                    Vector3 contourPoint = clickPoint + dir * contourDist;
-                    contourPoint.y = waterLevel;
-                    boundaryPoints.Add(contourPoint);
+                    float t = (Mathf.Abs(h - prevHeight) > 0.0001f) ? (waterLevel - prevHeight) / (h - prevHeight) : 0;
+                    Vector3 cp = clickPoint + dir * (prevDist + t * (dist - prevDist));
+                    cp.y = waterLevel;
+                    contour.Add(cp);
                     found = true;
                     break;
                 }
-                prevDist = dist;
-                prevHeight = h;
+                prevDist = dist; prevHeight = h;
                 dist += step;
             }
             if (!found)
             {
-                Vector3 farPoint = clickPoint + dir * maxSearchRadius;
-                farPoint.y = waterLevel;
-                boundaryPoints.Add(farPoint);
+                Vector3 fp = clickPoint + dir * maxR;
+                fp.y = waterLevel;
+                contour.Add(fp);
             }
         }
 
-        if (boundaryPoints.Count < 3)
-        {
-            Debug.Log("Недостаточно точек контура");
-            return;
-        }
-
-        Vector3 waterCenter = new Vector3(clickPoint.x, waterLevel, clickPoint.z);
-        RemoveOldWater(waterCenter, waterCleanupRadius);
-
-        ProceduralWaterMesh water = Instantiate(waterPrefab, waterCenter, Quaternion.identity);
+        if (contour.Count < 3) return;
+        Vector3 center = new Vector3(clickPoint.x, waterLevel, clickPoint.z);
+        RemoveOldWater(center, waterCleanupRadius);
+        ProceduralWaterMesh water = Instantiate(waterPrefab, center, Quaternion.identity);
         water.transform.localScale = Vector3.one;
-        water.BuildFromBoundary(waterCenter, boundaryPoints.ToArray(), waterLevel);
+        water.BuildFromBoundary(center, contour.ToArray(), waterLevel);
+        waterHistory.Add(water);
     }
 
-    void RemoveOldWater(Vector3 position, float radius)
+    void RemoveOldWater(Vector3 pos, float radius)
     {
-        ProceduralWaterMesh[] allWater = FindObjectsByType<ProceduralWaterMesh>();
-        foreach (ProceduralWaterMesh water in allWater)
-            if (Vector3.Distance(position, water.transform.position) <= radius)
-                Destroy(water.gameObject);
+        waterHistory.RemoveAll(w => w == null);
+        for (int i = waterHistory.Count - 1; i >= 0; i--)
+        {
+            if (Vector3.Distance(pos, waterHistory[i].transform.position) <= radius)
+            {
+                Destroy(waterHistory[i].gameObject);
+                waterHistory.RemoveAt(i);
+            }
+        }
     }
 
-    // ================= ЧАСТИЦЫ =================
-    void SpawnPhysicsParticles(Vector3 position, Color color, int count = 10, float size = 0.05f, float lifetime = 2f, float force = 0.8f)
+    void UndoLastWater()
+    {
+        for (int i = waterHistory.Count - 1; i >= 0; i--)
+        {
+            if (waterHistory[i] == null) { waterHistory.RemoveAt(i); continue; }
+            Destroy(waterHistory[i].gameObject);
+            waterHistory.RemoveAt(i);
+            break;
+        }
+    }
+
+    void ClearAllWater()
+    {
+        foreach (var w in FindObjectsOfType<ProceduralWaterMesh>()) Destroy(w.gameObject);
+        waterHistory.Clear();
+    }
+
+    void SpawnPhysicsParticles(Vector3 pos, Color color, int count, float size, float lifetime, float force)
     {
         for (int i = 0; i < count; i++)
         {
             GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cube.transform.position = position + Random.insideUnitSphere * 0.05f;
+            cube.transform.position = pos + Random.insideUnitSphere * 0.05f;
             cube.transform.localScale = Vector3.one * size;
             cube.transform.rotation = Random.rotation;
-
             Rigidbody rb = cube.AddComponent<Rigidbody>();
             rb.mass = 0.1f;
             rb.AddForce(Random.onUnitSphere * force, ForceMode.Impulse);
-
             Renderer rend = cube.GetComponent<Renderer>();
             rend.material = new Material(Shader.Find("Unlit/Color"));
             rend.material.color = color;
-
             Destroy(cube, lifetime);
         }
     }
 
-    // ===== UI (без изменений) =====
+    void PaintTerrainByHeight(Vector3 worldPos)
+    {
+        if (!targetTerrain) return;
+        TerrainData data = targetTerrain.terrainData;
+        int w = data.alphamapWidth, h = data.alphamapHeight;
+        Vector3 lp = worldPos - targetTerrain.transform.position;
+        int cx = Mathf.RoundToInt(lp.x / data.size.x * (w - 1));
+        int cy = Mathf.RoundToInt(lp.z / data.size.z * (h - 1));
+        int rad = Mathf.Clamp(Mathf.CeilToInt(brushSize / data.size.x * w), 1, 50);
+        int x0 = Mathf.Max(0, cx - rad), x1 = Mathf.Min(w - 1, cx + rad);
+        int y0 = Mathf.Max(0, cy - rad), y1 = Mathf.Min(h - 1, cy + rad);
+        int bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+        if (bw <= 0 || bh <= 0) return;
+        float[,,] alphas = data.GetAlphamaps(x0, y0, bw, bh);
+        float[,] heights = data.GetHeights(x0, y0, bw, bh);
+        float rockRel = rockHeight / data.size.y;
+        float soilRel = soilHeight / data.size.y;
+        for (int y = 0; y < bh; y++)
+        {
+            for (int x = 0; x < bw; x++)
+            {
+                float hgt = heights[y, x];
+                int layer = hgt < rockRel ? rockLayerIndex : (hgt < soilRel ? soilLayerIndex : grassLayerIndex);
+                for (int l = 0; l < data.alphamapLayers; l++) alphas[y, x, l] = (l == layer) ? 1f : 0f;
+            }
+        }
+        data.SetAlphamaps(x0, y0, alphas);
+    }
+
+    string GetLayerName(int idx)
+    {
+        if (targetTerrain && targetTerrain.terrainData.terrainLayers.Length > idx)
+            return "Слой-" + targetTerrain.terrainData.terrainLayers[idx].name;
+        return "Слой " + idx;
+    }
+
+    // ===================== UI =====================
     void CreateUI()
     {
         uiRoot = new GameObject("FixedUI", typeof(RectTransform), typeof(Canvas));
@@ -421,132 +434,135 @@ public class GameManager : MonoBehaviour
         Canvas canvas = uiRoot.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         uiRoot.AddComponent<TrackedDeviceGraphicRaycaster>();
-        RectTransform canvasRect = uiRoot.GetComponent<RectTransform>();
-        canvasRect.sizeDelta = new Vector2(800, 500);
+        RectTransform cr = uiRoot.GetComponent<RectTransform>();
+        cr.sizeDelta = new Vector2(800, 500);
         uiRoot.layer = LayerMask.NameToLayer("UI");
-        AssignLayerRecursively(uiRoot, LayerMask.NameToLayer("UI"));
+        AssignLayerRecursively(uiRoot, uiRoot.layer);
 
         GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         panel.transform.SetParent(uiRoot.transform, false);
-        panel.GetComponent<Image>().color = uiStyle != null ? uiStyle.panelBgColor : new Color(0, 0, 0, 0.5f);
-        RectTransform panelRect = panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = Vector2.zero; panelRect.anchorMax = Vector2.one; panelRect.sizeDelta = Vector2.zero;
+        panel.GetComponent<Image>().color = uiStyle?.panelBgColor ?? new Color(0, 0, 0, 0.5f);
+        RectTransform pr = panel.GetComponent<RectTransform>();
+        pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one; pr.sizeDelta = Vector2.zero;
 
         modeText = CreateText("ModeText", uiRoot.transform, "Режим: Копание", 28, TextAlignmentOptions.Left);
-        modeText.rectTransform.anchorMin = new Vector2(0, 1);
-        modeText.rectTransform.anchorMax = new Vector2(0, 1);
+        modeText.rectTransform.anchorMin = new Vector2(0, 1); modeText.rectTransform.anchorMax = new Vector2(0, 1);
         modeText.rectTransform.pivot = new Vector2(0, 1);
         modeText.rectTransform.anchoredPosition = new Vector2(30, -15);
         modeText.rectTransform.sizeDelta = new Vector2(350, 40);
 
-        float sliderLeftMargin = 30f;
-        float sliderWidth = 740f;
-        float labelHeight = 28f, sliderHeight = 24f;
-        float yPos = -70f;
-        float rowSpacing = 50f;
+        float lm = 30f, sw = 740f, lh = 28f, sh = 24f;
+        float yPos = -70f, rs = 50f;
 
         brushSizeText = CreateText("BrushLabel", uiRoot.transform, "Кисть: 2.5", 20, TextAlignmentOptions.Left);
         brushSizeText.rectTransform.anchorMin = new Vector2(0, 1); brushSizeText.rectTransform.anchorMax = new Vector2(0, 1);
         brushSizeText.rectTransform.pivot = new Vector2(0, 1);
-        brushSizeText.rectTransform.anchoredPosition = new Vector2(sliderLeftMargin, yPos);
-        brushSizeText.rectTransform.sizeDelta = new Vector2(250, labelHeight);
-        yPos -= labelHeight + 8;
-        brushSizeSlider = CreateSlider("BrushSlider", uiRoot.transform, new Vector2(sliderLeftMargin, yPos), new Vector2(sliderWidth, sliderHeight), 0.1f, 10f, 2.5f);
-        brushSizeSlider.onValueChanged.AddListener(val => brushSize = val);
-        yPos -= sliderHeight + rowSpacing;
+        brushSizeText.rectTransform.anchoredPosition = new Vector2(lm, yPos);
+        brushSizeText.rectTransform.sizeDelta = new Vector2(250, lh);
+        yPos -= lh + 8;
+        brushSizeSlider = CreateSlider("BrushSlider", uiRoot.transform, new Vector2(lm, yPos), new Vector2(sw, sh), 0.1f, 10f, 2.5f);
+        brushSizeSlider.onValueChanged.AddListener(v => brushSize = v);
+        yPos -= sh + rs;
 
         strengthText = CreateText("StrengthLabel", uiRoot.transform, "Сила: 0.800", 20, TextAlignmentOptions.Left);
         strengthText.rectTransform.anchorMin = new Vector2(0, 1); strengthText.rectTransform.anchorMax = new Vector2(0, 1);
         strengthText.rectTransform.pivot = new Vector2(0, 1);
-        strengthText.rectTransform.anchoredPosition = new Vector2(sliderLeftMargin, yPos);
-        strengthText.rectTransform.sizeDelta = new Vector2(250, labelHeight);
+        strengthText.rectTransform.anchoredPosition = new Vector2(lm, yPos);
+        strengthText.rectTransform.sizeDelta = new Vector2(250, lh);
         strengthTextOrigPos = strengthText.rectTransform.anchoredPosition;
-        yPos -= labelHeight + 8;
-        strengthSlider = CreateSlider("StrengthSlider", uiRoot.transform, new Vector2(sliderLeftMargin, yPos), new Vector2(sliderWidth, sliderHeight), 0.001f, 3f, 0.8f);
-        strengthSlider.onValueChanged.AddListener(val => strength = val);
+        yPos -= lh + 8;
+        strengthSlider = CreateSlider("StrengthSlider", uiRoot.transform, new Vector2(lm, yPos), new Vector2(sw, sh), 0.001f, 3f, 0.8f);
+        strengthSlider.onValueChanged.AddListener(v => strength = v);
         strengthSliderOrigPos = strengthSlider.GetComponent<RectTransform>().anchoredPosition;
-        yPos -= sliderHeight + rowSpacing;
+        yPos -= sh + rs;
 
         paintStrengthText = CreateText("PaintLabel", uiRoot.transform, "Краска: 0.50", 20, TextAlignmentOptions.Left);
         paintStrengthText.rectTransform.anchorMin = new Vector2(0, 1); paintStrengthText.rectTransform.anchorMax = new Vector2(0, 1);
         paintStrengthText.rectTransform.pivot = new Vector2(0, 1);
-        paintStrengthText.rectTransform.anchoredPosition = new Vector2(sliderLeftMargin, yPos);
-        paintStrengthText.rectTransform.sizeDelta = new Vector2(250, labelHeight);
+        paintStrengthText.rectTransform.anchoredPosition = new Vector2(lm, yPos);
+        paintStrengthText.rectTransform.sizeDelta = new Vector2(250, lh);
         paintStrengthTextOrigPos = paintStrengthText.rectTransform.anchoredPosition;
-        yPos -= labelHeight + 8;
-        paintStrengthSlider = CreateSlider("PaintSlider", uiRoot.transform, new Vector2(sliderLeftMargin, yPos), new Vector2(sliderWidth, sliderHeight), 0f, 2f, 0.5f);
-        paintStrengthSlider.onValueChanged.AddListener(val => paintStrength = val);
+        yPos -= lh + 8;
+        paintStrengthSlider = CreateSlider("PaintSlider", uiRoot.transform, new Vector2(lm, yPos), new Vector2(sw, sh), 0f, 2f, 0.5f);
+        paintStrengthSlider.onValueChanged.AddListener(v => paintStrength = v);
         paintStrengthSliderOrigPos = paintStrengthSlider.GetComponent<RectTransform>().anchoredPosition;
-        yPos -= sliderHeight + 45f;
+        yPos -= sh + 45f;
 
-        float arrowButtonWidth = 120f, arrowButtonHeight = 55f;
+        float aw = 120f, ah = 55f;
         prevLayerButton = CreateButton("PrevLayer", uiRoot.transform, "◄", Vector2.zero, Vector2.zero);
-        RectTransform prevRect = prevLayerButton.GetComponent<RectTransform>();
-        prevRect.anchorMin = prevRect.anchorMax = new Vector2(0, 1);
-        prevRect.pivot = new Vector2(0, 1);
-        prevRect.anchoredPosition = new Vector2(60, yPos);
-        prevRect.sizeDelta = new Vector2(arrowButtonWidth, arrowButtonHeight);
-        prevLayerButton.onClick.AddListener(PrevPaintLayer);
-        prevLayerOrigPos = prevRect.anchoredPosition;
+        RectTransform pvr = prevLayerButton.GetComponent<RectTransform>();
+        pvr.anchorMin = pvr.anchorMax = new Vector2(0, 1); pvr.pivot = new Vector2(0, 1);
+        pvr.anchoredPosition = new Vector2(60, yPos); pvr.sizeDelta = new Vector2(aw, ah);
+        prevLayerButton.onClick.AddListener(PrevPaintLayer); prevLayerOrigPos = pvr.anchoredPosition;
 
         nextLayerButton = CreateButton("NextLayer", uiRoot.transform, "►", Vector2.zero, Vector2.zero);
-        RectTransform nextRect = nextLayerButton.GetComponent<RectTransform>();
-        nextRect.anchorMin = nextRect.anchorMax = new Vector2(1, 1);
-        nextRect.pivot = new Vector2(1, 1);
-        nextRect.anchoredPosition = new Vector2(-60, yPos);
-        nextRect.sizeDelta = new Vector2(arrowButtonWidth, arrowButtonHeight);
-        nextLayerButton.onClick.AddListener(NextPaintLayer);
-        nextLayerOrigPos = nextRect.anchoredPosition;
+        RectTransform nxr = nextLayerButton.GetComponent<RectTransform>();
+        nxr.anchorMin = nxr.anchorMax = new Vector2(1, 1); nxr.pivot = new Vector2(1, 1);
+        nxr.anchoredPosition = new Vector2(-60, yPos); nxr.sizeDelta = new Vector2(aw, ah);
+        nextLayerButton.onClick.AddListener(NextPaintLayer); nextLayerOrigPos = nxr.anchoredPosition;
 
         paintLayerText = CreateText("LayerText", uiRoot.transform, "Слой: 0", 22, TextAlignmentOptions.Center);
         paintLayerText.rectTransform.anchorMin = new Vector2(0, 1); paintLayerText.rectTransform.anchorMax = new Vector2(1, 1);
         paintLayerText.rectTransform.pivot = new Vector2(0.5f, 1);
         paintLayerText.rectTransform.anchoredPosition = new Vector2(0, yPos - 8);
-        paintLayerText.rectTransform.sizeDelta = new Vector2(-(arrowButtonWidth * 2 + 60), 34);
+        paintLayerText.rectTransform.sizeDelta = new Vector2(-(aw * 2 + 60), 34);
         layerTextOrigPos = paintLayerText.rectTransform.anchoredPosition;
 
-        yPos -= arrowButtonHeight + 20f;
+        yPos -= ah + 20f;
 
-        float modeButtonWidth = 140f, modeButtonHeight = 55f;
-        float bottomMargin = 25f, startX = 60f, spacingX = 30f;
-
-        digButton = CreateModeButton("BtnDig", "Копать", new Vector2(startX, bottomMargin), new Vector2(modeButtonWidth, modeButtonHeight));
-        raiseButton = CreateModeButton("BtnRaise", "Насыпать", new Vector2(startX + modeButtonWidth + spacingX, bottomMargin), new Vector2(modeButtonWidth, modeButtonHeight));
-        paintButton = CreateModeButton("BtnPaint", "Красить", new Vector2(startX + (modeButtonWidth + spacingX) * 2, bottomMargin), new Vector2(modeButtonWidth, modeButtonHeight));
-        waterButton = CreateModeButton("BtnWater", "Вода", new Vector2(startX + (modeButtonWidth + spacingX) * 3, bottomMargin), new Vector2(modeButtonWidth, modeButtonHeight));
+        float mbw = 140f, mbh = 55f, bm = 25f, sx = 60f, spx = 30f;
+        digButton = CreateModeButton("BtnDig", "Копать", new Vector2(sx, bm), new Vector2(mbw, mbh));
+        raiseButton = CreateModeButton("BtnRaise", "Насыпать", new Vector2(sx + mbw + spx, bm), new Vector2(mbw, mbh));
+        paintButton = CreateModeButton("BtnPaint", "Красить", new Vector2(sx + (mbw + spx) * 2, bm), new Vector2(mbw, mbh));
+        waterButton = CreateModeButton("BtnWater", "Вода", new Vector2(sx + (mbw + spx) * 3, bm), new Vector2(mbw, mbh));
 
         digButton.onClick.AddListener(() => currentMode = ToolMode.Dig);
         raiseButton.onClick.AddListener(() => currentMode = ToolMode.Raise);
         paintButton.onClick.AddListener(() => currentMode = ToolMode.Paint);
         waterButton.onClick.AddListener(() => currentMode = ToolMode.Water);
+
+        // Широкие кнопки воды
+        float bigH = 65f, hp = 30f, gap = 10f;
+        float baseY = bm + mbh + 10f;
+
+        clearWaterButton = CreateButton("ClearAllWaterBtn", uiRoot.transform, "Удалить всю воду", Vector2.zero, Vector2.zero);
+        RectTransform crt = clearWaterButton.GetComponent<RectTransform>();
+        crt.anchorMin = new Vector2(0, 0); crt.anchorMax = new Vector2(1, 0); crt.pivot = new Vector2(0.5f, 0);
+        crt.anchoredPosition = new Vector2(0, baseY);
+        crt.sizeDelta = new Vector2(-hp * 2, bigH);
+        clearWaterButton.onClick.AddListener(ClearAllWater);
+
+        undoWaterButton = CreateButton("UndoLastWaterBtn", uiRoot.transform, "Отменить последнюю воду", Vector2.zero, Vector2.zero);
+        RectTransform ur = undoWaterButton.GetComponent<RectTransform>();
+        ur.anchorMin = new Vector2(0, 0); ur.anchorMax = new Vector2(1, 0); ur.pivot = new Vector2(0.5f, 0);
+        ur.anchoredPosition = new Vector2(0, baseY + bigH + gap);
+        ur.sizeDelta = new Vector2(-hp * 2, bigH);
+        undoWaterButton.onClick.AddListener(UndoLastWater);
     }
 
-    Button CreateModeButton(string name, string text, Vector2 anchoredPos, Vector2 sizeDelta)
+    Button CreateModeButton(string name, string text, Vector2 pos, Vector2 size)
     {
-        Button btn = CreateButton(name, uiRoot.transform, text, anchoredPos, sizeDelta);
-        RectTransform rect = btn.GetComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = new Vector2(0, 0);
-        rect.pivot = new Vector2(0, 0);
-        rect.anchoredPosition = anchoredPos;
+        Button btn = CreateButton(name, uiRoot.transform, text, pos, size);
+        RectTransform r = btn.GetComponent<RectTransform>();
+        r.anchorMin = r.anchorMax = new Vector2(0, 0);
+        r.pivot = new Vector2(0, 0);
+        r.anchoredPosition = pos;
         return btn;
     }
 
     void AssignLayerRecursively(GameObject obj, int layer)
     {
         obj.layer = layer;
-        foreach (Transform child in obj.transform)
-            AssignLayerRecursively(child.gameObject, layer);
+        foreach (Transform t in obj.transform) AssignLayerRecursively(t.gameObject, layer);
     }
 
-    TMP_Text CreateText(string name, Transform parent, string text, int fontSize, TextAlignmentOptions alignment)
+    TMP_Text CreateText(string name, Transform parent, string text, int size, TextAlignmentOptions align)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
         go.transform.SetParent(parent, false);
         TMP_Text tmp = go.GetComponent<TextMeshProUGUI>();
-        tmp.text = text;
-        tmp.fontSize = uiStyle != null ? uiStyle.labelFontSize : fontSize;
-        tmp.alignment = alignment;
-        tmp.color = uiStyle != null ? uiStyle.textColor : Color.white;
+        tmp.text = text; tmp.fontSize = uiStyle?.labelFontSize ?? size; tmp.alignment = align;
+        tmp.color = uiStyle?.textColor ?? Color.white;
         tmp.rectTransform.localScale = Vector3.one;
         return tmp;
     }
@@ -555,101 +571,87 @@ public class GameManager : MonoBehaviour
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         go.transform.SetParent(parent, false);
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0, 1); rect.anchorMax = new Vector2(0, 1);
-        rect.pivot = new Vector2(0, 1);
-        rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = sizeDelta;
-
-        go.GetComponent<Image>().color = uiStyle != null ? uiStyle.buttonColor : new Color(0.3f, 0.3f, 0.3f, 0.8f);
-        Button button = go.GetComponent<Button>();
-
-        GameObject textGO = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-        textGO.transform.SetParent(go.transform, false);
-        TMP_Text tmp = textGO.GetComponent<TextMeshProUGUI>();
-        tmp.text = text;
-        tmp.fontSize = uiStyle != null ? uiStyle.buttonFontSize : 20;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = uiStyle != null ? uiStyle.buttonTextColor : Color.white;
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1); rt.anchorMax = new Vector2(0, 1);
+        rt.pivot = new Vector2(0, 1);
+        rt.anchoredPosition = anchoredPos; rt.sizeDelta = sizeDelta;
+        go.GetComponent<Image>().color = uiStyle?.buttonColor ?? new Color(0.3f, 0.3f, 0.3f, 0.8f);
+        Button btn = go.GetComponent<Button>();
+        GameObject textGo = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        textGo.transform.SetParent(go.transform, false);
+        TMP_Text tmp = textGo.GetComponent<TextMeshProUGUI>();
+        tmp.text = text; tmp.fontSize = uiStyle?.buttonFontSize ?? 20; tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = uiStyle?.buttonTextColor ?? Color.white;
         tmp.rectTransform.anchorMin = Vector2.zero; tmp.rectTransform.anchorMax = Vector2.one; tmp.rectTransform.sizeDelta = Vector2.zero;
-        return button;
+        return btn;
     }
 
-    Slider CreateSlider(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, float minVal, float maxVal, float defaultVal)
+    Slider CreateSlider(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, float min, float max, float val)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(Slider));
         go.transform.SetParent(parent, false);
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0, 1); rect.anchorMax = new Vector2(0, 1);
-        rect.pivot = new Vector2(0, 1);
-        rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = sizeDelta;
-
-        Slider slider = go.GetComponent<Slider>();
-        slider.minValue = minVal; slider.maxValue = maxVal; slider.value = defaultVal;
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1); rt.anchorMax = new Vector2(0, 1); rt.pivot = new Vector2(0, 1);
+        rt.anchoredPosition = anchoredPos; rt.sizeDelta = sizeDelta;
+        Slider sl = go.GetComponent<Slider>();
+        sl.minValue = min; sl.maxValue = max; sl.value = val;
 
         GameObject bg = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         bg.transform.SetParent(go.transform, false);
-        bg.GetComponent<Image>().color = uiStyle != null ? uiStyle.sliderBgColor : new Color(0.2f, 0.2f, 0.2f);
-        RectTransform bgRect = bg.GetComponent<RectTransform>();
-        bgRect.anchorMin = Vector2.zero; bgRect.anchorMax = Vector2.one; bgRect.sizeDelta = Vector2.zero;
+        bg.GetComponent<Image>().color = uiStyle?.sliderBgColor ?? new Color(0.2f, 0.2f, 0.2f);
+        RectTransform bgr = bg.GetComponent<RectTransform>();
+        bgr.anchorMin = Vector2.zero; bgr.anchorMax = Vector2.one; bgr.sizeDelta = Vector2.zero;
 
-        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
-        fillArea.transform.SetParent(go.transform, false);
-        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
-        fillAreaRect.anchorMin = Vector2.zero; fillAreaRect.anchorMax = Vector2.one;
-        fillAreaRect.sizeDelta = new Vector2(-30, 0); fillAreaRect.anchoredPosition = new Vector2(15, 0);
+        GameObject fa = new GameObject("Fill Area", typeof(RectTransform));
+        fa.transform.SetParent(go.transform, false);
+        RectTransform far = fa.GetComponent<RectTransform>();
+        far.anchorMin = Vector2.zero; far.anchorMax = Vector2.one;
+        far.sizeDelta = new Vector2(-30, 0); far.anchoredPosition = new Vector2(15, 0);
 
         GameObject fill = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        fill.transform.SetParent(fillArea.transform, false);
-        fill.GetComponent<Image>().color = uiStyle != null ? uiStyle.sliderFillColor : new Color(0.4f, 0.6f, 1f);
-        RectTransform fillRect = fill.GetComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero; fillRect.anchorMax = Vector2.one; fillRect.sizeDelta = Vector2.zero;
+        fill.transform.SetParent(fa.transform, false);
+        fill.GetComponent<Image>().color = uiStyle?.sliderFillColor ?? new Color(0.4f, 0.6f, 1f);
+        RectTransform fr = fill.GetComponent<RectTransform>();
+        fr.anchorMin = Vector2.zero; fr.anchorMax = Vector2.one; fr.sizeDelta = Vector2.zero;
 
-        GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-        handleArea.transform.SetParent(go.transform, false);
-        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
-        handleAreaRect.anchorMin = Vector2.zero; handleAreaRect.anchorMax = Vector2.one; handleAreaRect.sizeDelta = Vector2.zero;
+        GameObject ha = new GameObject("Handle Slide Area", typeof(RectTransform));
+        ha.transform.SetParent(go.transform, false);
+        RectTransform har = ha.GetComponent<RectTransform>();
+        har.anchorMin = Vector2.zero; har.anchorMax = Vector2.one; har.sizeDelta = Vector2.zero;
 
         GameObject handle = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        handle.transform.SetParent(handleArea.transform, false);
+        handle.transform.SetParent(ha.transform, false);
         handle.GetComponent<Image>().color = Color.white;
-        RectTransform handleRect = handle.GetComponent<RectTransform>();
-        handleRect.anchorMin = Vector2.zero; handleRect.anchorMax = Vector2.one; handleRect.sizeDelta = new Vector2(12, 24);
+        RectTransform hr = handle.GetComponent<RectTransform>();
+        hr.anchorMin = Vector2.zero; hr.anchorMax = Vector2.one; hr.sizeDelta = new Vector2(12, 24);
 
-        slider.fillRect = fillRect; slider.handleRect = handleRect;
-        slider.targetGraphic = handle.GetComponent<Image>();
-        slider.transition = Selectable.Transition.None;
-        return slider;
+        sl.fillRect = fr; sl.handleRect = hr; sl.targetGraphic = handle.GetComponent<Image>();
+        sl.transition = Selectable.Transition.None;
+        return sl;
     }
 
     void UpdateUI()
     {
-        string modeStr = currentMode switch
-        {
-            ToolMode.Dig => "Копание",
-            ToolMode.Raise => "Насыпь",
-            ToolMode.Paint => "Краска",
-            ToolMode.Water => "Вода",
-            _ => ""
-        };
+        string modeStr = currentMode switch { ToolMode.Dig => "Копание", ToolMode.Raise => "Насыпь", ToolMode.Paint => "Краска", ToolMode.Water => "Вода", _ => "" };
         if (modeText) modeText.text = $"Режим: {modeStr}";
 
-        bool digOrRaise = (currentMode == ToolMode.Dig || currentMode == ToolMode.Raise);
-        bool paintMode = (currentMode == ToolMode.Paint);
-        bool waterMode = (currentMode == ToolMode.Water);
+        bool digRaise = currentMode is ToolMode.Dig or ToolMode.Raise;
+        bool paint = currentMode == ToolMode.Paint;
+        bool water = currentMode == ToolMode.Water;
 
-        if (brushSizeText) brushSizeText.gameObject.SetActive(!waterMode);
-        if (brushSizeSlider) brushSizeSlider.gameObject.SetActive(!waterMode);
-        if (strengthText) strengthText.gameObject.SetActive(digOrRaise);
-        if (strengthSlider) strengthSlider.gameObject.SetActive(digOrRaise);
-        if (paintStrengthText) paintStrengthText.gameObject.SetActive(paintMode);
-        if (paintStrengthSlider) paintStrengthSlider.gameObject.SetActive(paintMode);
-        if (paintLayerText) paintLayerText.gameObject.SetActive(paintMode);
-        if (prevLayerButton) prevLayerButton.gameObject.SetActive(paintMode);
-        if (nextLayerButton) nextLayerButton.gameObject.SetActive(paintMode);
+        if (brushSizeText) brushSizeText.gameObject.SetActive(!water);
+        if (brushSizeSlider) brushSizeSlider.gameObject.SetActive(!water);
+        if (strengthText) strengthText.gameObject.SetActive(digRaise);
+        if (strengthSlider) strengthSlider.gameObject.SetActive(digRaise);
+        if (paintStrengthText) paintStrengthText.gameObject.SetActive(paint);
+        if (paintStrengthSlider) paintStrengthSlider.gameObject.SetActive(paint);
+        if (paintLayerText) paintLayerText.gameObject.SetActive(paint);
+        if (prevLayerButton) prevLayerButton.gameObject.SetActive(paint);
+        if (nextLayerButton) nextLayerButton.gameObject.SetActive(paint);
+        if (clearWaterButton) clearWaterButton.gameObject.SetActive(water);
+        if (undoWaterButton) undoWaterButton.gameObject.SetActive(water);
 
-        if (paintMode)
+        if (paint)
         {
             Vector2 shift = strengthTextOrigPos - paintStrengthTextOrigPos;
             paintStrengthText.rectTransform.anchoredPosition = paintStrengthTextOrigPos + shift;
@@ -667,28 +669,12 @@ public class GameManager : MonoBehaviour
             paintLayerText.rectTransform.anchoredPosition = layerTextOrigPos;
         }
 
-        if (brushSizeText && !waterMode) brushSizeText.text = $"Кисть: {brushSize:F1}";
-        if (strengthText && digOrRaise) strengthText.text = $"Сила: {strength:F3}";
-        if (paintStrengthText && paintMode) paintStrengthText.text = $"Краска: {paintStrength:F2}";
-        if (paintLayerText && paintMode) paintLayerText.text = GetLayerName(paintLayer);
+        if (brushSizeText && !water) brushSizeText.text = $"Кисть: {brushSize:F1}";
+        if (strengthText && digRaise) strengthText.text = $"Сила: {strength:F3}";
+        if (paintStrengthText && paint) paintStrengthText.text = $"Краска: {paintStrength:F2}";
+        if (paintLayerText && paint) paintLayerText.text = GetLayerName(paintLayer);
     }
 
-    void PrevPaintLayer()
-    {
-        int layerCount = targetTerrain?.terrainData.alphamapLayers ?? 1;
-        paintLayer = (paintLayer - 1 + layerCount) % layerCount;
-    }
-
-    void NextPaintLayer()
-    {
-        int layerCount = targetTerrain?.terrainData.alphamapLayers ?? 1;
-        paintLayer = (paintLayer + 1) % layerCount;
-    }
-
-    string GetLayerName(int index)
-    {
-        if (targetTerrain != null && targetTerrain.terrainData.terrainLayers.Length > index)
-            return "Слой-" + targetTerrain.terrainData.terrainLayers[index].name;
-        return "Слой " + index;
-    }
+    void PrevPaintLayer() { int cnt = targetTerrain?.terrainData.alphamapLayers ?? 1; paintLayer = (paintLayer - 1 + cnt) % cnt; }
+    void NextPaintLayer() { int cnt = targetTerrain?.terrainData.alphamapLayers ?? 1; paintLayer = (paintLayer + 1) % cnt; }
 }
